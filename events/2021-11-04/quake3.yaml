@@ -1,0 +1,145 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: quakejs
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: quakejs
+  namespace: quakejs
+spec:
+  selector:
+    matchLabels:
+      run: quakejs
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        run: quakejs
+      annotations:
+        prometheus.io/scrape: 'true'
+        prometheus.io/port: '8080'
+    spec:
+      containers:
+      - command:
+        - q3
+        - server
+        - --config=/config/config.yaml
+        - --content-server=http://localhost:9090
+        - --agree-eula
+        image: criticalstack/quake:v1.0.5
+        name: server
+        securityContext:
+          runAsUser: 65534
+          runAsGroup: 65534
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+        ports:
+        - containerPort: 8080
+        readinessProbe:
+          tcpSocket:
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 5
+        volumeMounts:
+        - name: quake3-server-config
+          mountPath: /config
+        - name: quake3-content
+          mountPath: /assets
+      - command:
+        - q3
+        - content
+        - --seed-content-url=http://content.quakejs.com
+        image: criticalstack/quake:v1.0.5
+        name: content-server
+        securityContext:
+          runAsUser: 65534
+          runAsGroup: 65534
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+        ports:
+        - containerPort: 9090
+        volumeMounts:
+        - name: quake3-content
+          mountPath: /assets
+      volumes:
+        - name: quake3-server-config
+          configMap:
+            name: quake3-server-config
+        - name: quake3-content
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: quakejs
+  namespace: quakejs
+spec:
+  type: ClusterIP
+  selector:
+    run: quakejs
+  ports:
+    - port: 8080
+      targetPort: 8080
+      name: http
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: quake3-server-config
+  namespace: quakejs
+data:
+  config.yaml: |
+    fragLimit: 25
+    timeLimit: 15m
+    game:
+      motd: "Welcome to Critical Stack"
+      type: FreeForAll
+      forceRespawn: false
+      inactivity: 10m
+      quadFactor: 3
+      weaponRespawn: 3
+    server:
+      hostname: "quakekube"
+      maxClients: 12
+      password: "changeme"
+    maps:
+    - name: q3dm7
+      type: FreeForAll
+    - name: q3dm17
+      type: FreeForAll
+    - name: q3wctf1
+      type: CaptureTheFlag
+      captureLimit: 8
+    - name: q3tourney2
+      type: Tournament
+    - name: q3wctf3
+      type: CaptureTheFlag
+      captureLimit: 8
+    - name: ztn3tourney1
+      type: Tournament
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    kubernetes.io/ingress.class: nginx
+  name: quakejs
+  namespace: quakejs
+spec:
+  rules:
+  - host: quake.ii.nz
+    http:
+      paths:
+      - backend:
+          service:
+            name: quakejs
+            port:
+              number: 8080
+        path: /
+        pathType: ImplementationSpecific
+  # tls:
+  # - hosts:
+  #   - quakejs.islive.xyz
+  #   secretName: letsencrypt-prod-quakejs
