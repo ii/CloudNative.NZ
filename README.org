@@ -1,0 +1,7 @@
+#+TITLE: CloudNative.NZ
+
+#+begin_quote
+Hosted by ii.nz, CloudNative.NZ is a Tauranga based meetup group that meets every Thursday of the month.
+#+end_quote
+
+Find info at the [[https://www.meetup.com/cloudnative-nz/][meetup.com page]].
